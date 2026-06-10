@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="Attendance">
   <meta name="theme-color" content="#0070C0">
   <meta name="description" content="DQAP Attendance System - 10-day test with team rankings and pattern detection">
-  <link rel="manifest" href="manifest.json">
+ <link rel="manifest" href="/attendance-pwa/manifest.json">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%230070C0' width='192' height='192'/><text x='50%' y='50%' font-size='120' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='central'>A</text></svg>">
   <title>DQAP Attendance</title>
   <style>
@@ -396,7 +396,7 @@
 <script>
 // Register service worker
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js').catch(() => {
+ navigator.serviceWorker.register('/attendance-pwa/service-worker.js').catch(() => {
     // Service worker not available, app still works
   });
 }
