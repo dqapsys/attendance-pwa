@@ -1,8 +1,8 @@
 const CACHE_NAME = 'attendance-v1';
 const urlsToCache = [
-  '/',
-  '/attendance-pwa.html',
-  '/manifest.json'
+  '/attendance-pwa/',
+  '/attendance-pwa/index.html',
+  '/attendance-pwa/manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
