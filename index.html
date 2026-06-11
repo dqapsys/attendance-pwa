@@ -1,3 +1,6 @@
+**Here is the complete updated `index.html` file (full version with all original content + Firebase fix):**
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -472,7 +475,6 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/attendance-pwa/service-worker.js').catch(() => {});
 }
 
-// Firebase config - UPDATE THIS WITH YOUR KEYS
 const firebaseConfig = {
   apiKey: "AIzaSyA6T2HkI8bindR0yeTN42rOZ50KUew96hY",
   authDomain: "dqap-attendance.firebaseapp.com",
@@ -481,30 +483,29 @@ const firebaseConfig = {
   messagingSenderId: "589211325947",
   appId: "1:589211325947:web:a91305e6fa48abf630275e"
 };
-  
-// Initialize Firebase
+
 let db = null;
 
 function initFirebase() {
   if (typeof firebase === 'undefined') {
-    console.warn('Firebase SDK not loaded yet');
-    setTimeout(initFirebase, 500);
+    setTimeout(initFirebase, 300);
     return;
   }
-
   try {
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
     db = firebase.firestore();
     console.log('✓ Firebase initialized successfully');
+    app.init();
   } catch (e) {
-    console.warn('Firebase error:', e.message);
+    console.error('Firebase init failed:', e);
   }
 }
 
-// Initialize when scripts are loaded
-setTimeout(initFirebase, 1000);
+window.addEventListener('load', () => {
+  setTimeout(initFirebase, 400);
+});
 
 const app = {
   currentUser: 'u001',
@@ -658,7 +659,6 @@ const app = {
   async renderEmployee() {
     document.getElementById('empName').textContent = this.employees[this.currentUser].name;
 
-    // Get today's record
     const todayRecord = await this.getTodayRecord(this.currentUser);
     if (todayRecord) {
       if (todayRecord.status === 'present') {
@@ -670,12 +670,8 @@ const app = {
       document.getElementById('todayStatus').textContent = '⏳ Not checked in';
     }
 
-    // Get 10-day timeline
     let timelineHtml = '';
-    const dates = [
-      '06-10', '06-11', '06-12', '06-13', '06-14',
-      '06-15', '06-16', '06-17', '06-18', '06-19'
-    ];
+    const dates = ['06-10', '06-11', '06-12', '06-13', '06-14', '06-15', '06-16', '06-17', '06-18', '06-19'];
 
     for (const dateStr of dates) {
       const record = await this.getRecordForDate(this.currentUser, dateStr);
@@ -713,7 +709,6 @@ const app = {
 
   async renderAdmin() {
     let teamHtml = '';
-    
     for (const userId of Object.keys(this.employees)) {
       const todayRecord = await this.getTodayRecord(userId);
       let statusText = '⏳ Not checked in';
@@ -733,27 +728,20 @@ const app = {
         </div>
       `;
     }
-    
     document.getElementById('teamGrid').innerHTML = teamHtml;
   },
 
   async renderRanking() {
     let rankHtml = '';
-    
-    // Count check-ins for each user (placeholder - real calculation would use all 10 days)
     const scores = [];
+    const dates = ['06-10', '06-11', '06-12', '06-13', '06-14', '06-15', '06-16', '06-17', '06-18', '06-19'];
+    
     for (const userId of Object.keys(this.employees)) {
       let checkins = 0;
-      const dates = [
-        '06-10', '06-11', '06-12', '06-13', '06-14',
-        '06-15', '06-16', '06-17', '06-18', '06-19'
-      ];
-      
       for (const dateStr of dates) {
         const record = await this.getRecordForDate(userId, dateStr);
         if (record && record.status === 'present') checkins++;
       }
-      
       scores.push({ userId, name: this.employees[userId].name, score: checkins * 10 });
     }
     
@@ -784,9 +772,10 @@ function showSuccess(msg) {
   el.innerHTML = `<div class="success-msg">${msg}</div>`;
   setTimeout(() => el.innerHTML = '', 3000);
 }
-
-app.init();
 </script>
 
 </body>
 </html>
+```
+
+**Replace your entire file** with this. This should fix the SDK loading issue.
