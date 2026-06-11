@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Attendance">
+  <meta name="theme-color" content="#0070C0">
+  <link rel="manifest" href="/attendance-pwa/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%230070C0' width='192' height='192'/><text x='50%' y='50%' font-size='120' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='central'>A</text></svg>">
+  <title>DQAP Attendance</title>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-compat/app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-compat/firestore.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    
+    html, body { 
+      width: 100%; 
+      height: 100%; 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+      font-size: 15px; 
+      color: #1f2937; 
+      background: #f9fafb;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    
+    body { display: flex; flex-direction: column; overflow: hidden; }
+    
+    .app-header {
+      background: #0070C0;
+      color: white;
+      padding: max(12px, env(safe-area-inset-top)) 16px 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .header-content { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .header-title { font-size: 18px; font-weight: 600; }
+    .header-info { font-size: 12px; opacity: 0.9; }
+    
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 12px;
+      padding-bottom: 70px;
+    }
+    
+    .view { display: none; }
+    .view.active { display: block; }
+    
+    .info-banner {
+      padding: 12px;
+      background: #e0f2fe;
+      color: #0369a1;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    
+    .card {
+      background: white;
+      border: 0.5px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    
+    .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+    .card h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; margin-top: 16px; }
+    
+    .user-selector-mobile {
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      background: white;
+      border: 0.5px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 14px;
+      width: 100%;
+    }
+    
+    .status-box {
+      background: linear-gradient(135deg, #0070C0 0%, #0056a0 100%);
+      color: white;
+      padding: 16px;
+      border-radius: 12px;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    
+    .status-label { font-size: 12px; opacity: 0.9; margin-bottom: 6px; }
+    .status-value { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+    
+    .button-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    
+    .btn {
+      padding: 12px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: #059669;
+      color: white;
+      grid-column: 1 / -1;
+    }
+    
+    .btn-primary:active { background: #047857; }
+    .btn-primary:disabled { background: #d1d5db; cursor: not-allowed; }
+    
+    .btn-secondary {
+      background: #f3f4f6;
+      color: #1f2937;
+      border: 0.5px solid #e5e7eb;
+    }
+    
+    .btn-secondary:active { background: #e5e7eb; }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 200;
+      padding: 12px;
+    }
+    
+    .modal.active { display: flex; align-items: flex-end; }
+    
+    .modal-content {
+      background: white;
+      border-radius: 12px 12px 0 0;
+      padding: 20px;
+      width: 100%;
+      animation: slideUp 0.3s ease-out;
+      padding-bottom: max(20px, env(safe-area-inset-bottom));
+    }
+    
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    
+    .modal h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+    
+    .form-group {
+      margin-bottom: 12px;
+    }
+    
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: #374151;
+    }
+    
+    .form-group select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 0.5px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .radio-option {
+      padding: 12px;
+      border: 0.5px solid #e5e7eb;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+    
+    .radio-option input[type="radio"] { margin: 0; }
+    .radio-option.selected { background: #eff6ff; border-color: #0070C0; }
+    
+    .timeline-day {
+      display: flex;
+      gap: 10px;
+      padding: 10px;
+      background: #f9fafb;
+      border-radius: 8px;
+      border: 0.5px solid #e5e7eb;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .timeline-date { font-weight: 500; font-size: 12px; min-width: 45px; }
+    
+    .status-badge {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: white;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    
+    .status-badge.present { background: #059669; }
+    .status-badge.late { background: #d97706; }
+    .status-badge.wfh { background: #0070C0; }
+    .status-badge.very-late { background: #dc2626; }
+    .status-badge.empty { background: #d1d5db; }
+    
+    .timeline-info {
+      flex: 1;
+      font-size: 12px;
+    }
+    
+    .timeline-time { font-weight: 500; }
+    .timeline-desc { color: #6b7280; font-size: 11px; margin-top: 2px; }
+    
+    .team-member {
+      display: grid;
+      grid-template-columns: 1fr 80px;
+      gap: 12px;
+      padding: 12px;
+      background: #f9fafb;
+      border-radius: 8px;
+      border: 0.5px solid #e5e7eb;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+    
+    .member-name { font-weight: 500; font-size: 13px; }
+    .member-status { text-align: right; font-size: 12px; }
+    
+    .score-box {
+      background: linear-gradient(135deg, #0070C0 0%, #0056a0 100%);
+      color: white;
+      padding: 16px;
+      border-radius: 12px;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    
+    .score-label { font-size: 12px; opacity: 0.9; margin-bottom: 6px; }
+    .score-number { font-size: 32px; font-weight: 700; margin-bottom: 4px; }
+    .score-badge { font-size: 14px; }
+    
+    .ranking {
+      display: grid;
+      grid-template-columns: 35px 1fr 45px;
+      gap: 12px;
+      padding: 12px;
+      background: #f9fafb;
+      border-radius: 8px;
+      border-bottom: 0.5px solid #e5e7eb;
+      align-items: center;
+    }
+    
+    .ranking:last-child { border-bottom: none; }
+    .ranking-name { font-weight: 500; font-size: 13px; }
+    .ranking-score { text-align: right; font-weight: 600; }
+    
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 0.5px solid #e5e7eb;
+      display: flex;
+      padding-bottom: env(safe-area-inset-bottom);
+      z-index: 100;
+    }
+    
+    .nav-item {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      cursor: pointer;
+      border: none;
+      background: white;
+      font-size: 12px;
+      font-weight: 500;
+      color: #6b7280;
+      transition: all 0.2s;
+    }
+    
+    .nav-item.active {
+      color: #0070C0;
+      border-top: 3px solid #0070C0;
+    }
+    
+    .loading { opacity: 0.5; pointer-events: none; }
+    
+    .error-msg {
+      padding: 12px;
+      background: #fee2e2;
+      color: #991b1b;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+    
+    .success-msg {
+      padding: 12px;
+      background: #ecfdf5;
+      color: #065f46;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-content">
+    <div>
+      <div class="header-title">Attendance</div>
+      <div class="header-info">DQAP • Live Testing</div>
+    </div>
+  </div>
+</header>
+
+<main class="main-content">
+  
+  <!-- EMPLOYEE VIEW -->
+  <div id="employeeView" class="view active">
+    <div class="info-banner">
+      ✅ Real-time check-in system
+      <br>Check in daily at 9:30 AM or mark OOO
+    </div>
+    
+    <div id="errorMsg"></div>
+    <div id="successMsg"></div>
+    
+    <div class="card">
+      <select id="userSelect" class="user-selector-mobile">
+        <option value="u001">👤 Updesh</option>
+        <option value="u002">👤 Pratim</option>
+        <option value="u003">👤 Keshav</option>
+        <option value="u004">👤 Jawed</option>
+        <option value="u005">👤 Dev</option>
+        <option value="u006">👤 Ravi</option>
+      </select>
+    </div>
+    
+    <div class="card">
+      <h2 id="empName"></h2>
+      
+      <div class="status-box">
+        <div class="status-label">Today's Status</div>
+        <div class="status-value" id="todayStatus">—</div>
+      </div>
+      
+      <div class="button-group">
+        <button class="btn btn-primary" onclick="app.showCheckInModal()">✓ Check In Now</button>
+        <button class="btn btn-secondary" onclick="app.showOOOModal()">📍 Mark OOO</button>
+      </div>
+      
+      <h3>10-Day Timeline</h3>
+      <div id="empTimeline"></div>
+    </div>
+  </div>
+  
+  <!-- ADMIN VIEW -->
+  <div id="adminView" class="view">
+    <div class="info-banner">
+      ⚙️ Admin Dashboard • Real-time team status
+    </div>
+    
+    <div class="card">
+      <h2>Today's Check-Ins</h2>
+      <div id="teamGrid"></div>
+    </div>
+    
+    <div class="card">
+      <h3>Consistency Scores</h3>
+      <div id="adminScores"></div>
+    </div>
+  </div>
+  
+  <!-- RANKING VIEW -->
+  <div id="rankingView" class="view">
+    <div class="info-banner">
+      🏆 Team Rankings • Updated daily
+    </div>
+    
+    <div class="card">
+      <h2>Consistency Scores</h2>
+      <div id="rankingsList"></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- CHECK-IN MODAL -->
+<div id="checkInModal" class="modal">
+  <div class="modal-content">
+    <h2>Check In</h2>
+    <p style="color: #6b7280; font-size: 14px; margin-bottom: 12px;">Current time will be recorded</p>
+    <button class="btn btn-primary" onclick="app.submitCheckIn()">Confirm Check-In</button>
+    <button class="btn btn-secondary" style="margin-top: 8px; grid-column: 1 / -1;" onclick="app.closeModal('checkInModal')">Cancel</button>
+  </div>
+</div>
+
+<!-- OOO MODAL -->
+<div id="oooModal" class="modal">
+  <div class="modal-content">
+    <h2>Mark as Out of Office</h2>
+    
+    <div class="form-group">
+      <label>Reason:</label>
+      <div class="radio-group">
+        <label class="radio-option" onclick="app.selectOOO('wfh')">
+          <input type="radio" name="ooo" value="wfh"> 📍 Working from Home
+        </label>
+        <label class="radio-option" onclick="app.selectOOO('meeting')">
+          <input type="radio" name="ooo" value="meeting"> 🤝 Client Meeting
+        </label>
+        <label class="radio-option" onclick="app.selectOOO('travel')">
+          <input type="radio" name="ooo" value="travel"> ✈️ Travel / Outstation
+        </label>
+        <label class="radio-option" onclick="app.selectOOO('leave')">
+          <input type="radio" name="ooo" value="leave"> 📅 Approved Leave
+        </label>
+        <label class="radio-option" onclick="app.selectOOO('training')">
+          <input type="radio" name="ooo" value="training"> 🏆 Training
+        </label>
+        <label class="radio-option" onclick="app.selectOOO('other')">
+          <input type="radio" name="ooo" value="other"> 📝 Other
+        </label>
+      </div>
+    </div>
+    
+    <button class="btn btn-primary" onclick="app.submitOOO()">Mark as OOO</button>
+    <button class="btn btn-secondary" style="margin-top: 8px; grid-column: 1 / -1;" onclick="app.closeModal('oooModal')">Cancel</button>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <button class="nav-item active" onclick="app.switchView('employee')">👤 Employee</button>
+  <button class="nav-item" onclick="app.switchView('admin')">⚙️ Admin</button>
+  <button class="nav-item" onclick="app.switchView('ranking')">🏆 Rankings</button>
+</nav>
+
+<script>
+// Service worker registration
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/attendance-pwa/service-worker.js').catch(() => {});
+}
+
+// Firebase config - UPDATE THIS WITH YOUR KEYS
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "your-project.firebaseapp.com",
+  projectId: "your-project",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+// Initialize Firebase
+let db = null;
+
+function initFirebase() {
+  if (typeof firebase === 'undefined') {
+    console.warn('Firebase SDK not loaded yet');
+    setTimeout(initFirebase, 500);
+    return;
+  }
+
+  try {
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    db = firebase.firestore();
+    console.log('✓ Firebase initialized successfully');
+  } catch (e) {
+    console.warn('Firebase error:', e.message);
+  }
+}
+
+// Initialize when scripts are loaded
+setTimeout(initFirebase, 1000);
+
+const app = {
+  currentUser: 'u001',
+  currentView: 'employee',
+  selectedOOO: null,
+  
+  employees: {
+    'u001': { name: 'Updesh', role: 'Founder' },
+    'u002': { name: 'Pratim', role: 'Co-Founder' },
+    'u003': { name: 'Keshav', role: 'Operations' },
+    'u004': { name: 'Jawed', role: 'Sales' },
+    'u005': { name: 'Dev', role: 'Field Tech' },
+    'u006': { name: 'Ravi', role: 'Employee' }
+  },
+
+  init() {
+    this.attachEventListeners();
+    this.render();
+  },
+
+  attachEventListeners() {
+    document.getElementById('userSelect').addEventListener('change', (e) => {
+      this.currentUser = e.target.value;
+      this.render();
+    });
+  },
+
+  switchView(view) {
+    this.currentView = view;
+    
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(view === 'employee' ? 'employeeView' : view === 'admin' ? 'adminView' : 'rankingView').classList.add('active');
+    
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    this.render();
+  },
+
+  showCheckInModal() {
+    document.getElementById('checkInModal').classList.add('active');
+  },
+
+  showOOOModal() {
+    document.getElementById('oooModal').classList.add('active');
+  },
+
+  closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+  },
+
+  selectOOO(type) {
+    this.selectedOOO = type;
+    document.querySelectorAll('.radio-option').forEach(opt => opt.classList.remove('selected'));
+    event.currentTarget.classList.add('selected');
+  },
+
+  async submitCheckIn() {
+    if (!db) {
+      showError('Firebase is initializing... please wait 2 seconds and try again');
+      return;
+    }
+
+    const now = new Date();
+    const time = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+    const dateStr = (now.getMonth() + 1).toString().padStart(2, '0') + '-' + now.getDate().toString().padStart(2, '0');
+    const userId = this.currentUser;
+
+    try {
+      await db.collection('attendances').doc(`${userId}_${dateStr}`).set({
+        userId,
+        date: dateStr,
+        checkin_time: time,
+        status: 'present',
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      showSuccess(`✓ Checked in at ${time}`);
+      this.closeModal('checkInModal');
+      setTimeout(() => this.render(), 500);
+    } catch (e) {
+      showError('Check-in failed: ' + e.message);
+    }
+  },
+
+  async submitOOO() {
+    if (!this.selectedOOO) {
+      showError('Please select a reason');
+      return;
+    }
+
+    if (!db) {
+      showError('Firebase is initializing... please wait 2 seconds and try again');
+      return;
+    }
+
+    const now = new Date();
+    const dateStr = (now.getMonth() + 1).toString().padStart(2, '0') + '-' + now.getDate().toString().padStart(2, '0');
+    const userId = this.currentUser;
+
+    const oooLabels = {
+      'wfh': 'Working from Home',
+      'meeting': 'Client Meeting',
+      'travel': 'Travel',
+      'leave': 'Approved Leave',
+      'training': 'Training',
+      'other': 'Other'
+    };
+
+    try {
+      await db.collection('attendances').doc(`${userId}_${dateStr}`).set({
+        userId,
+        date: dateStr,
+        status: 'ooo',
+        oof_type: this.selectedOOO,
+        oof_reason: oooLabels[this.selectedOOO],
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      showSuccess(`✓ Marked as ${oooLabels[this.selectedOOO]}`);
+      this.selectedOOO = null;
+      this.closeModal('oooModal');
+      setTimeout(() => this.render(), 500);
+    } catch (e) {
+      showError('OOO marking failed: ' + e.message);
+    }
+  },
+
+  async getRecordForDate(userId, dateStr) {
+    if (!db) return null;
+    try {
+      const doc = await db.collection('attendances').doc(`${userId}_${dateStr}`).get();
+      return doc.exists ? doc.data() : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async getTodayRecord(userId) {
+    const now = new Date();
+    const dateStr = (now.getMonth() + 1).toString().padStart(2, '0') + '-' + now.getDate().toString().padStart(2, '0');
+    return this.getRecordForDate(userId, dateStr);
+  },
+
+  render() {
+    if (this.currentView === 'employee') this.renderEmployee();
+    else if (this.currentView === 'admin') this.renderAdmin();
+    else this.renderRanking();
+  },
+
+  async renderEmployee() {
+    document.getElementById('empName').textContent = this.employees[this.currentUser].name;
+
+    // Get today's record
+    const todayRecord = await this.getTodayRecord(this.currentUser);
+    if (todayRecord) {
+      if (todayRecord.status === 'present') {
+        document.getElementById('todayStatus').textContent = `✓ ${todayRecord.checkin_time}`;
+      } else if (todayRecord.status === 'ooo') {
+        document.getElementById('todayStatus').textContent = `📍 ${todayRecord.oof_reason}`;
+      }
+    } else {
+      document.getElementById('todayStatus').textContent = '⏳ Not checked in';
+    }
+
+    // Get 10-day timeline
+    let timelineHtml = '';
+    const dates = [
+      '06-10', '06-11', '06-12', '06-13', '06-14',
+      '06-15', '06-16', '06-17', '06-18', '06-19'
+    ];
+
+    for (const dateStr of dates) {
+      const record = await this.getRecordForDate(this.currentUser, dateStr);
+      const [month, day] = dateStr.split('-');
+      
+      if (record) {
+        const statusIcon = record.status === 'present' ? '✓' : '📍';
+        const statusClass = record.status === 'present' ? 'present' : 'wfh';
+        const timeOrReason = record.checkin_time || record.oof_reason || 'OOO';
+        
+        timelineHtml += `
+          <div class="timeline-day">
+            <div class="timeline-date">Jun ${day}</div>
+            <span class="status-badge ${statusClass}">${statusIcon}</span>
+            <div class="timeline-info">
+              <div class="timeline-time">${timeOrReason}</div>
+            </div>
+          </div>
+        `;
+      } else {
+        timelineHtml += `
+          <div class="timeline-day">
+            <div class="timeline-date">Jun ${day}</div>
+            <span class="status-badge empty">—</span>
+            <div class="timeline-info">
+              <div class="timeline-time">No entry</div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    document.getElementById('empTimeline').innerHTML = timelineHtml;
+  },
+
+  async renderAdmin() {
+    let teamHtml = '';
+    
+    for (const userId of Object.keys(this.employees)) {
+      const todayRecord = await this.getTodayRecord(userId);
+      let statusText = '⏳ Not checked in';
+      
+      if (todayRecord) {
+        if (todayRecord.status === 'present') {
+          statusText = `✓ ${todayRecord.checkin_time}`;
+        } else {
+          statusText = `📍 ${todayRecord.oof_reason}`;
+        }
+      }
+
+      teamHtml += `
+        <div class="team-member">
+          <div class="member-name">${this.employees[userId].name}</div>
+          <div class="member-status">${statusText}</div>
+        </div>
+      `;
+    }
+    
+    document.getElementById('teamGrid').innerHTML = teamHtml;
+  },
+
+  async renderRanking() {
+    let rankHtml = '';
+    
+    // Count check-ins for each user (placeholder - real calculation would use all 10 days)
+    const scores = [];
+    for (const userId of Object.keys(this.employees)) {
+      let checkins = 0;
+      const dates = [
+        '06-10', '06-11', '06-12', '06-13', '06-14',
+        '06-15', '06-16', '06-17', '06-18', '06-19'
+      ];
+      
+      for (const dateStr of dates) {
+        const record = await this.getRecordForDate(userId, dateStr);
+        if (record && record.status === 'present') checkins++;
+      }
+      
+      scores.push({ userId, name: this.employees[userId].name, score: checkins * 10 });
+    }
+    
+    scores.sort((a, b) => b.score - a.score);
+    
+    scores.forEach((item, idx) => {
+      rankHtml += `
+        <div class="ranking">
+          <div style="font-weight: 600;">#${idx + 1}</div>
+          <div class="ranking-name">${item.name}</div>
+          <div class="ranking-score">${item.score}%</div>
+        </div>
+      `;
+    });
+    
+    document.getElementById('rankingsList').innerHTML = rankHtml;
+  }
+};
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.innerHTML = `<div class="error-msg">${msg}</div>`;
+  setTimeout(() => el.innerHTML = '', 5000);
+}
+
+function showSuccess(msg) {
+  const el = document.getElementById('successMsg');
+  el.innerHTML = `<div class="success-msg">${msg}</div>`;
+  setTimeout(() => el.innerHTML = '', 3000);
+}
+
+app.init();
+</script>
+
+</body>
+</html>
