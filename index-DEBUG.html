@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Attendance">
+  <meta name="theme-color" content="#0070C0">
+  <link rel="manifest" href="/attendance-pwa/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%230070C0' width='192' height='192'/><text x='50%' y='50%' font-size='120' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='central'>A</text></svg>">
+  <title>DQAP Attendance</title>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-compat/app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-compat/firestore.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { width: 100%; height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; color: #1f2937; background: #f9fafb; }
+    body { display: flex; flex-direction: column; overflow: hidden; }
+    .app-header { background: #0070C0; color: white; padding: max(12px, env(safe-area-inset-top)) 16px 12px; position: sticky; top: 0; z-index: 100; }
+    .header-title { font-size: 18px; font-weight: 600; }
+    .header-info { font-size: 12px; opacity: 0.9; }
+    .main-content { flex: 1; overflow-y: auto; padding: 12px; padding-bottom: 70px; }
+    .card { background: white; border: 0.5px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+    .info-banner { padding: 12px; background: #e0f2fe; color: #0369a1; border-radius: 8px; margin-bottom: 12px; font-size: 12px; line-height: 1.5; }
+    .status-box { background: linear-gradient(135deg, #0070C0 0%, #0056a0 100%); color: white; padding: 16px; border-radius: 12px; text-align: center; margin-bottom: 12px; }
+    .status-label { font-size: 12px; opacity: 0.9; margin-bottom: 6px; }
+    .status-value { font-size: 24px; font-weight: 700; }
+    .button-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .btn { padding: 12px 16px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: #059669; color: white; grid-column: 1 / -1; }
+    .btn-primary:disabled { background: #d1d5db; cursor: not-allowed; opacity: 0.5; }
+    .btn-secondary { background: #f3f4f6; color: #1f2937; border: 0.5px solid #e5e7eb; }
+    .debug-box { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 11px; font-family: monospace; line-height: 1.4; }
+    .debug-line { margin: 4px 0; }
+    .status-ok { color: #059669; }
+    .status-wait { color: #d97706; }
+    .status-error { color: #dc2626; }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 0.5px solid #e5e7eb; display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
+    .nav-item { flex: 1; padding: 12px; text-align: center; cursor: pointer; border: none; background: white; font-size: 12px; font-weight: 500; color: #6b7280; }
+    .nav-item.active { color: #0070C0; border-top: 3px solid #0070C0; }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <div>
+      <div class="header-title">Attendance</div>
+      <div class="header-info">DQAP • Debug Mode</div>
+    </div>
+  </div>
+</header>
+
+<main class="main-content">
+  <div class="info-banner">
+    🔍 Debug Information Below
+    <br>Checking Firebase initialization...
+  </div>
+  
+  <div class="card">
+    <h2>Firebase Status</h2>
+    <div id="debugBox" class="debug-box">
+      <div class="debug-line"><span class="status-wait">⏳</span> Starting Firebase check...</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Test Check-In (When Ready)</h2>
+    <div class="status-box">
+      <div class="status-label">Firebase Status</div>
+      <div class="status-value" id="firebaseStatus">Loading...</div>
+    </div>
+    <button class="btn btn-primary" id="testBtn" onclick="testCheckIn()" disabled>🧪 Test Check-In</button>
+    <button class="btn btn-secondary" onclick="retryFirebase()" style="margin-top: 8px; grid-column: 1/-1;">🔄 Retry Firebase</button>
+  </div>
+
+  <div class="card">
+    <h2>Configuration Check</h2>
+    <div style="font-size: 12px; line-height: 1.6;">
+      <div id="configStatus"></div>
+    </div>
+  </div>
+</main>
+
+<nav class="bottom-nav">
+  <button class="nav-item" onclick="location.reload()" style="flex: 1;">🔄 Reload Page</button>
+  <button class="nav-item" onclick="openConsole()" style="flex: 1;">📱 Open Console (F12)</button>
+</nav>
+
+<script>
+let db = null;
+let firebaseReady = false;
+let initAttempts = 0;
+const maxAttempts = 50; // 50 * 200ms = 10 seconds
+
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyA6T2HkI8bindR0yeTN42rOZ50KUew96hY",
+  authDomain: "dqap-attendance.firebaseapp.com",
+  projectId: "dqap-attendance",
+  storageBucket: "dqap-attendance.firebasestorage.app",
+  messagingSenderId: "589211325947",
+  appId: "1:589211325947:web:a91305e6fa48abf630275e"
+};
+
+function log(msg, type = 'info') {
+  const box = document.getElementById('debugBox');
+  const line = document.createElement('div');
+  line.className = 'debug-line';
+  
+  if (type === 'ok') {
+    line.innerHTML = `<span class="status-ok">✓</span> ${msg}`;
+  } else if (type === 'error') {
+    line.innerHTML = `<span class="status-error">✗</span> ${msg}`;
+  } else if (type === 'wait') {
+    line.innerHTML = `<span class="status-wait">⏳</span> ${msg}`;
+  } else {
+    line.innerHTML = `ℹ️ ${msg}`;
+  }
+  
+  box.appendChild(line);
+  console.log(`[${type}] ${msg}`);
+}
+
+function updateStatus(text, color) {
+  const el = document.getElementById('firebaseStatus');
+  el.textContent = text;
+  el.style.color = color;
+}
+
+function checkFirebase() {
+  initAttempts++;
+  log(`Attempt ${initAttempts}/${maxAttempts}`, 'wait');
+  
+  // Check if Firebase SDK loaded
+  if (typeof firebase === 'undefined') {
+    log('Firebase SDK not loaded yet', 'wait');
+    if (initAttempts < maxAttempts) {
+      setTimeout(checkFirebase, 200);
+    } else {
+      log('Firebase SDK failed to load after 10 seconds!', 'error');
+      updateStatus('SDK Load Failed', '#dc2626');
+    }
+    return;
+  }
+  
+  log('✓ Firebase SDK detected', 'ok');
+  
+  try {
+    // Check if already initialized
+    if (firebase.apps.length > 0) {
+      log('Firebase already initialized', 'ok');
+      db = firebase.firestore();
+    } else {
+      log('Initializing Firebase app...', 'wait');
+      firebase.initializeApp(firebaseConfig);
+      log('Firebase app initialized', 'ok');
+      
+      log('Initializing Firestore...', 'wait');
+      db = firebase.firestore();
+      log('Firestore initialized', 'ok');
+    }
+    
+    firebaseReady = true;
+    updateStatus('Ready ✓', '#059669');
+    
+    // Enable button
+    document.getElementById('testBtn').disabled = false;
+    log('✓ Buttons enabled - Firebase is ready!', 'ok');
+    
+  } catch (e) {
+    log(`Initialization error: ${e.message}`, 'error');
+    console.error('Full error:', e);
+    
+    if (initAttempts < maxAttempts) {
+      setTimeout(checkFirebase, 500);
+    } else {
+      updateStatus('Initialization Failed', '#dc2626');
+    }
+  }
+}
+
+function retryFirebase() {
+  initAttempts = 0;
+  document.getElementById('debugBox').innerHTML = '<div class="debug-line"><span class="status-wait">⏳</span> Retrying Firebase...</div>';
+  document.getElementById('testBtn').disabled = true;
+  updateStatus('Retrying...', '#d97706');
+  checkFirebase();
+}
+
+async function testCheckIn() {
+  if (!firebaseReady || !db) {
+    log('Firebase not ready', 'error');
+    return;
+  }
+  
+  log('Testing check-in...', 'wait');
+  
+  try {
+    const now = new Date();
+    const time = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+    const dateStr = (now.getMonth() + 1).toString().padStart(2, '0') + '-' + now.getDate().toString().padStart(2, '0');
+    
+    log(`Writing to Firestore: u001_${dateStr}`, 'wait');
+    
+    await db.collection('attendances').doc(`u001_${dateStr}`).set({
+      userId: 'u001',
+      date: dateStr,
+      checkin_time: time,
+      status: 'present',
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    log(`✓ Check-in successful at ${time}`, 'ok');
+    log('Data saved to Firestore', 'ok');
+    
+  } catch (e) {
+    log(`Check-in failed: ${e.message}`, 'error');
+    console.error('Full error:', e);
+  }
+}
+
+function openConsole() {
+  alert('Press F12 to open the browser console and see detailed logs');
+}
+
+// Show config info
+const configDiv = document.getElementById('configStatus');
+configDiv.innerHTML = `
+<div style="font-family: monospace; font-size: 11px;">
+  <div>projectId: ${firebaseConfig.projectId}</div>
+  <div>authDomain: ${firebaseConfig.authDomain}</div>
+  <div>apiKey: ${firebaseConfig.apiKey.substring(0, 20)}...</div>
+</div>
+`;
+
+// Start Firebase check
+window.addEventListener('load', () => {
+  log('Page fully loaded, starting Firebase initialization', 'wait');
+  setTimeout(checkFirebase, 100);
+});
+
+// Also try immediately
+log('Starting Firebase check...', 'wait');
+checkFirebase();
+</script>
+
+</body>
+</html>
