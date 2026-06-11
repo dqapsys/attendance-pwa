@@ -426,7 +426,7 @@
 </nav>
 
 <script>
-// Service worker
+// Service worker registration
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/attendance-pwa/service-worker.js').catch(() => {});
 }
@@ -443,43 +443,6 @@ const firebaseConfig = {
 
 let db = null;
 let firebaseReady = false;
-
-function initFirebase() {
-  if (typeof firebase === 'undefined') {
-    console.log('Firebase SDK not loaded yet, retrying...');
-    setTimeout(initFirebase, 200);
-    return;
-  }
-
-  try {
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
-      console.log('✓ Firebase app initialized');
-    }
-    db = firebase.firestore();
-    firebaseReady = true;
-    console.log('✓ Firebase and Firestore ready');
-    
-    document.getElementById('checkInBtn').disabled = false;
-    document.getElementById('oooBtn').disabled = false;
-    document.getElementById('loadingMsg').innerHTML = '';
-    
-    app.init();   // Now safe
-  } catch (e) {
-    console.error('Firebase init error:', e);
-    setTimeout(initFirebase, 1000);
-  }
-}
-
-// Show loading immediately
-document.getElementById('loadingMsg').innerHTML = '<div class="loading-msg">Initializing Firebase...</div>';
-
-// Start init
-initFirebase();
-
-window.addEventListener('load', () => {
-  if (!firebaseReady) initFirebase();
-});
 
 const app = {
   currentUser: 'u001',
@@ -514,11 +477,9 @@ const app = {
     document.getElementById(targetId).classList.add('active');
     
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-    // Fix for event
-    const activeBtn = Array.from(document.querySelectorAll('.nav-item')).find(btn => 
-      btn.getAttribute('onclick').includes(view)
-    );
-    if (activeBtn) activeBtn.classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(item => {
+      if (item.getAttribute('onclick').includes(view)) item.classList.add('active');
+    });
     
     this.render();
   },
@@ -543,7 +504,7 @@ const app = {
 
   async submitCheckIn() {
     if (!firebaseReady || !db) {
-      showError('Firebase is initializing... please wait a moment and try again');
+      showError('Firebase is initializing... please wait a moment');
       return;
     }
 
@@ -564,7 +525,6 @@ const app = {
       showSuccess(`✓ Checked in at ${time}`);
       setTimeout(() => this.render(), 500);
     } catch (e) {
-      console.error('Check-in error:', e);
       showError('Check-in failed: ' + e.message);
     }
   },
@@ -576,7 +536,7 @@ const app = {
     }
 
     if (!firebaseReady || !db) {
-      showError('Firebase is initializing... please wait a moment and try again');
+      showError('Firebase is initializing... please wait');
       return;
     }
 
@@ -608,7 +568,6 @@ const app = {
       this.closeModal('oooModal');
       setTimeout(() => this.render(), 500);
     } catch (e) {
-      console.error('OOO error:', e);
       showError('OOO marking failed: ' + e.message);
     }
   },
@@ -619,7 +578,6 @@ const app = {
       const doc = await db.collection('attendances').doc(`${userId}_${dateStr}`).get();
       return doc.exists ? doc.data() : null;
     } catch (e) {
-      console.error('Get record error:', e);
       return null;
     }
   },
@@ -651,102 +609,52 @@ const app = {
     }
 
     let timelineHtml = '';
-    const dates = [
-      '06-10', '06-11', '06-12', '06-13', '06-14',
-      '06-15', '06-16', '06-17', '06-18', '06-19'
-    ];
+    const dates = ['06-10','06-11','06-12','06-13','06-14','06-15','06-16','06-17','06-18','06-19'];
 
     for (const dateStr of dates) {
       const record = await this.getRecordForDate(this.currentUser, dateStr);
       const [month, day] = dateStr.split('-');
-      
       if (record) {
         const statusIcon = record.status === 'present' ? '✓' : '📍';
         const statusClass = record.status === 'present' ? 'present' : 'wfh';
         const timeOrReason = record.checkin_time || record.oof_reason || 'OOO';
-        
-        timelineHtml += `
-          <div class="timeline-day">
-            <div class="timeline-date">Jun ${day}</div>
-            <span class="status-badge ${statusClass}">${statusIcon}</span>
-            <div class="timeline-info">
-              <div class="timeline-time">${timeOrReason}</div>
-            </div>
-          </div>
-        `;
+        timelineHtml += `<div class="timeline-day"><div class="timeline-date">Jun ${day}</div><span class="status-badge ${statusClass}">${statusIcon}</span><div class="timeline-info"><div class="timeline-time">${timeOrReason}</div></div></div>`;
       } else {
-        timelineHtml += `
-          <div class="timeline-day">
-            <div class="timeline-date">Jun ${day}</div>
-            <span class="status-badge empty">—</span>
-            <div class="timeline-info">
-              <div class="timeline-time">No entry</div>
-            </div>
-          </div>
-        `;
+        timelineHtml += `<div class="timeline-day"><div class="timeline-date">Jun ${day}</div><span class="status-badge empty">—</span><div class="timeline-info"><div class="timeline-time">No entry</div></div></div>`;
       }
     }
-
     document.getElementById('empTimeline').innerHTML = timelineHtml;
   },
 
   async renderAdmin() {
     let teamHtml = '';
-    
     for (const userId of Object.keys(this.employees)) {
       const todayRecord = await this.getTodayRecord(userId);
       let statusText = '⏳ Not checked in';
-      
       if (todayRecord) {
-        if (todayRecord.status === 'present') {
-          statusText = `✓ ${todayRecord.checkin_time}`;
-        } else {
-          statusText = `📍 ${todayRecord.oof_reason}`;
-        }
+        statusText = todayRecord.status === 'present' ? `✓ ${todayRecord.checkin_time}` : `📍 ${todayRecord.oof_reason}`;
       }
-
-      teamHtml += `
-        <div class="team-member">
-          <div class="member-name">${this.employees[userId].name}</div>
-          <div class="member-status">${statusText}</div>
-        </div>
-      `;
+      teamHtml += `<div class="team-member"><div class="member-name">${this.employees[userId].name}</div><div class="member-status">${statusText}</div></div>`;
     }
-    
     document.getElementById('teamGrid').innerHTML = teamHtml;
   },
 
   async renderRanking() {
     let rankHtml = '';
-    
     const scores = [];
+    const dates = ['06-10','06-11','06-12','06-13','06-14','06-15','06-16','06-17','06-18','06-19'];
     for (const userId of Object.keys(this.employees)) {
       let checkins = 0;
-      const dates = [
-        '06-10', '06-11', '06-12', '06-13', '06-14',
-        '06-15', '06-16', '06-17', '06-18', '06-19'
-      ];
-      
       for (const dateStr of dates) {
         const record = await this.getRecordForDate(userId, dateStr);
         if (record && record.status === 'present') checkins++;
       }
-      
-      scores.push({ userId, name: this.employees[userId].name, score: checkins * 10 });
+      scores.push({name: this.employees[userId].name, score: checkins * 10});
     }
-    
     scores.sort((a, b) => b.score - a.score);
-    
     scores.forEach((item, idx) => {
-      rankHtml += `
-        <div class="ranking">
-          <div style="font-weight: 600;">#${idx + 1}</div>
-          <div class="ranking-name">${item.name}</div>
-          <div class="ranking-score">${item.score}%</div>
-        </div>
-      `;
+      rankHtml += `<div class="ranking"><div style="font-weight:600;">#${idx+1}</div><div class="ranking-name">${item.name}</div><div class="ranking-score">${item.score}%</div></div>`;
     });
-    
     document.getElementById('rankingsList').innerHTML = rankHtml;
   }
 };
@@ -762,6 +670,33 @@ function showSuccess(msg) {
   el.innerHTML = `<div class="success-msg">${msg}</div>`;
   setTimeout(() => el.innerHTML = '', 3000);
 }
+
+// Firebase Init
+function initFirebase() {
+  if (typeof firebase === 'undefined') {
+    setTimeout(initFirebase, 200);
+    return;
+  }
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    firebaseReady = true;
+    document.getElementById('checkInBtn').disabled = false;
+    document.getElementById('oooBtn').disabled = false;
+    document.getElementById('loadingMsg').innerHTML = '';
+    app.init();
+  } catch (e) {
+    console.error(e);
+    setTimeout(initFirebase, 800);
+  }
+}
+
+document.getElementById('loadingMsg').innerHTML = '<div class="loading-msg">Initializing Firebase...</div>';
+initFirebase();
+
+window.addEventListener('load', () => {
+  if (!firebaseReady) initFirebase();
+});
 </script>
 
 </body>
