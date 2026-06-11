@@ -120,7 +120,7 @@
     }
     
     .btn-primary:active { background: #047857; }
-    .btn-primary:disabled { background: #d1d5db; cursor: not-allowed; }
+    .btn-primary:disabled { background: #d1d5db; cursor: not-allowed; opacity: 0.6; }
     
     .btn-secondary {
       background: #f3f4f6;
@@ -129,6 +129,7 @@
     }
     
     .btn-secondary:active { background: #e5e7eb; }
+    .btn-secondary:disabled { background: #e5e7eb; cursor: not-allowed; opacity: 0.6; }
     
     .modal {
       display: none;
@@ -159,26 +160,6 @@
     }
     
     .modal h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
-    
-    .form-group {
-      margin-bottom: 12px;
-    }
-    
-    .form-group label {
-      display: block;
-      font-size: 13px;
-      font-weight: 500;
-      margin-bottom: 6px;
-      color: #374151;
-    }
-    
-    .form-group select {
-      width: 100%;
-      padding: 10px 12px;
-      border: 0.5px solid #e5e7eb;
-      border-radius: 8px;
-      font-size: 14px;
-    }
     
     .radio-group {
       display: flex;
@@ -226,9 +207,7 @@
     }
     
     .status-badge.present { background: #059669; }
-    .status-badge.late { background: #d97706; }
     .status-badge.wfh { background: #0070C0; }
-    .status-badge.very-late { background: #dc2626; }
     .status-badge.empty { background: #d1d5db; }
     
     .timeline-info {
@@ -253,19 +232,6 @@
     
     .member-name { font-weight: 500; font-size: 13px; }
     .member-status { text-align: right; font-size: 12px; }
-    
-    .score-box {
-      background: linear-gradient(135deg, #0070C0 0%, #0056a0 100%);
-      color: white;
-      padding: 16px;
-      border-radius: 12px;
-      text-align: center;
-      margin-bottom: 12px;
-    }
-    
-    .score-label { font-size: 12px; opacity: 0.9; margin-bottom: 6px; }
-    .score-number { font-size: 32px; font-weight: 700; margin-bottom: 4px; }
-    .score-badge { font-size: 14px; }
     
     .ranking {
       display: grid;
@@ -312,8 +278,6 @@
       border-top: 3px solid #0070C0;
     }
     
-    .loading { opacity: 0.5; pointer-events: none; }
-    
     .error-msg {
       padding: 12px;
       background: #fee2e2;
@@ -327,6 +291,15 @@
       padding: 12px;
       background: #ecfdf5;
       color: #065f46;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+    
+    .loading-msg {
+      padding: 12px;
+      background: #fef3c7;
+      color: #92400e;
       border-radius: 8px;
       margin-bottom: 12px;
       font-size: 12px;
@@ -355,6 +328,7 @@
     
     <div id="errorMsg"></div>
     <div id="successMsg"></div>
+    <div id="loadingMsg"></div>
     
     <div class="card">
       <select id="userSelect" class="user-selector-mobile">
@@ -376,8 +350,8 @@
       </div>
       
       <div class="button-group">
-        <button class="btn btn-primary" onclick="app.showCheckInModal()">✓ Check In Now</button>
-        <button class="btn btn-secondary" onclick="app.showOOOModal()">📍 Mark OOO</button>
+        <button class="btn btn-primary" id="checkInBtn" onclick="app.submitCheckIn()" disabled>✓ Check In Now</button>
+        <button class="btn btn-secondary" id="oooBtn" onclick="app.showOOOModal()" disabled>📍 Mark OOO</button>
       </div>
       
       <h3>10-Day Timeline</h3>
@@ -395,11 +369,6 @@
       <h2>Today's Check-Ins</h2>
       <div id="teamGrid"></div>
     </div>
-    
-    <div class="card">
-      <h3>Consistency Scores</h3>
-      <div id="adminScores"></div>
-    </div>
   </div>
   
   <!-- RANKING VIEW -->
@@ -416,23 +385,13 @@
 
 </main>
 
-<!-- CHECK-IN MODAL -->
-<div id="checkInModal" class="modal">
-  <div class="modal-content">
-    <h2>Check In</h2>
-    <p style="color: #6b7280; font-size: 14px; margin-bottom: 12px;">Current time will be recorded</p>
-    <button class="btn btn-primary" onclick="app.submitCheckIn()">Confirm Check-In</button>
-    <button class="btn btn-secondary" style="margin-top: 8px; grid-column: 1 / -1;" onclick="app.closeModal('checkInModal')">Cancel</button>
-  </div>
-</div>
-
 <!-- OOO MODAL -->
 <div id="oooModal" class="modal">
   <div class="modal-content">
     <h2>Mark as Out of Office</h2>
     
-    <div class="form-group">
-      <label>Reason:</label>
+    <div style="margin-bottom: 16px;">
+      <label style="font-weight: 500; display: block; margin-bottom: 12px;">Reason:</label>
       <div class="radio-group">
         <label class="radio-option" onclick="app.selectOOO('wfh')">
           <input type="radio" name="ooo" value="wfh"> 📍 Working from Home
@@ -472,6 +431,7 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/attendance-pwa/service-worker.js').catch(() => {});
 }
 
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyA6T2HkI8bindR0yeTN42rOZ50KUew96hY",
   authDomain: "dqap-attendance.firebaseapp.com",
@@ -482,26 +442,47 @@ const firebaseConfig = {
 };
 
 let db = null;
+let firebaseReady = false;
 
 function initFirebase() {
   if (typeof firebase === 'undefined') {
-    setTimeout(initFirebase, 300);
+    console.log('Firebase SDK not loaded yet, retrying...');
+    setTimeout(initFirebase, 200);
     return;
   }
+
   try {
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
+      console.log('✓ Firebase app initialized');
     }
     db = firebase.firestore();
-    console.log('✓ Firebase initialized successfully');
+    firebaseReady = true;
+    console.log('✓ Firebase and Firestore ready');
+    
+    // Enable buttons once Firebase is ready
+    document.getElementById('checkInBtn').disabled = false;
+    document.getElementById('oooBtn').disabled = false;
+    
+    // Hide loading message
+    document.getElementById('loadingMsg').innerHTML = '';
+    
     app.init();
   } catch (e) {
-    console.error('Firebase init failed:', e);
+    console.error('Firebase init error:', e);
+    setTimeout(initFirebase, 1000);
   }
 }
 
+// Start Firebase initialization immediately
+initFirebase();
+
+// Also try on window load as backup
 window.addEventListener('load', () => {
-  setTimeout(initFirebase, 400);
+  if (!firebaseReady) {
+    console.log('Retrying Firebase init on window load...');
+    initFirebase();
+  }
 });
 
 const app = {
@@ -510,17 +491,17 @@ const app = {
   selectedOOO: null,
   
   employees: {
-    'u001': { name: 'Updesh', role: 'Founder' },
-    'u002': { name: 'Pratim', role: 'Co-Founder' },
-    'u003': { name: 'Keshav', role: 'Operations' },
-    'u004': { name: 'Jawed', role: 'Sales' },
-    'u005': { name: 'Dev', role: 'Field Tech' },
-    'u006': { name: 'Ravi', role: 'Employee' }
+    'u001': { name: 'Updesh' },
+    'u002': { name: 'Pratim' },
+    'u003': { name: 'Keshav' },
+    'u004': { name: 'Jawed' },
+    'u005': { name: 'Dev' },
+    'u006': { name: 'Ravi' }
   },
 
-  async init() {
+  init() {
     this.attachEventListeners();
-    await this.render();
+    this.render();
   },
 
   attachEventListeners() {
@@ -542,11 +523,11 @@ const app = {
     this.render();
   },
 
-  showCheckInModal() {
-    document.getElementById('checkInModal').classList.add('active');
-  },
-
   showOOOModal() {
+    if (!firebaseReady) {
+      showError('Firebase is initializing... please wait');
+      return;
+    }
     document.getElementById('oooModal').classList.add('active');
   },
 
@@ -561,8 +542,8 @@ const app = {
   },
 
   async submitCheckIn() {
-    if (!db) {
-      showError('Firebase is initializing... please wait 2 seconds and try again');
+    if (!firebaseReady || !db) {
+      showError('Firebase is initializing... please wait a moment and try again');
       return;
     }
 
@@ -581,9 +562,9 @@ const app = {
       });
 
       showSuccess(`✓ Checked in at ${time}`);
-      this.closeModal('checkInModal');
       setTimeout(() => this.render(), 500);
     } catch (e) {
+      console.error('Check-in error:', e);
       showError('Check-in failed: ' + e.message);
     }
   },
@@ -594,8 +575,8 @@ const app = {
       return;
     }
 
-    if (!db) {
-      showError('Firebase is initializing... please wait 2 seconds and try again');
+    if (!firebaseReady || !db) {
+      showError('Firebase is initializing... please wait a moment and try again');
       return;
     }
 
@@ -627,16 +608,18 @@ const app = {
       this.closeModal('oooModal');
       setTimeout(() => this.render(), 500);
     } catch (e) {
+      console.error('OOO error:', e);
       showError('OOO marking failed: ' + e.message);
     }
   },
 
   async getRecordForDate(userId, dateStr) {
-    if (!db) return null;
+    if (!firebaseReady || !db) return null;
     try {
       const doc = await db.collection('attendances').doc(`${userId}_${dateStr}`).get();
       return doc.exists ? doc.data() : null;
     } catch (e) {
+      console.error('Get record error:', e);
       return null;
     }
   },
@@ -668,7 +651,10 @@ const app = {
     }
 
     let timelineHtml = '';
-    const dates = ['06-10', '06-11', '06-12', '06-13', '06-14', '06-15', '06-16', '06-17', '06-18', '06-19'];
+    const dates = [
+      '06-10', '06-11', '06-12', '06-13', '06-14',
+      '06-15', '06-16', '06-17', '06-18', '06-19'
+    ];
 
     for (const dateStr of dates) {
       const record = await this.getRecordForDate(this.currentUser, dateStr);
@@ -706,6 +692,7 @@ const app = {
 
   async renderAdmin() {
     let teamHtml = '';
+    
     for (const userId of Object.keys(this.employees)) {
       const todayRecord = await this.getTodayRecord(userId);
       let statusText = '⏳ Not checked in';
@@ -725,20 +712,26 @@ const app = {
         </div>
       `;
     }
+    
     document.getElementById('teamGrid').innerHTML = teamHtml;
   },
 
   async renderRanking() {
     let rankHtml = '';
-    const scores = [];
-    const dates = ['06-10', '06-11', '06-12', '06-13', '06-14', '06-15', '06-16', '06-17', '06-18', '06-19'];
     
+    const scores = [];
     for (const userId of Object.keys(this.employees)) {
       let checkins = 0;
+      const dates = [
+        '06-10', '06-11', '06-12', '06-13', '06-14',
+        '06-15', '06-16', '06-17', '06-18', '06-19'
+      ];
+      
       for (const dateStr of dates) {
         const record = await this.getRecordForDate(userId, dateStr);
         if (record && record.status === 'present') checkins++;
       }
+      
       scores.push({ userId, name: this.employees[userId].name, score: checkins * 10 });
     }
     
