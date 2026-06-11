@@ -481,7 +481,7 @@ const firebaseConfig = {
   messagingSenderId: "589211325947",
   appId: "1:589211325947:web:a91305e6fa48abf630275e"
 };
-
+  
 // Initialize Firebase
 let db = null;
 
@@ -520,9 +520,9 @@ const app = {
     'u006': { name: 'Ravi', role: 'Employee' }
   },
 
-  init() {
+  async init() {
     this.attachEventListeners();
-    this.render();
+    await this.render();
   },
 
   attachEventListeners() {
@@ -649,10 +649,10 @@ const app = {
     return this.getRecordForDate(userId, dateStr);
   },
 
-  render() {
-    if (this.currentView === 'employee') this.renderEmployee();
-    else if (this.currentView === 'admin') this.renderAdmin();
-    else this.renderRanking();
+  async render() {
+    if (this.currentView === 'employee') await this.renderEmployee();
+    else if (this.currentView === 'admin') await this.renderAdmin();
+    else await this.renderRanking();
   },
 
   async renderEmployee() {
