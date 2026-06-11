@@ -426,7 +426,7 @@
 </nav>
 
 <script>
-// Service worker registration
+// Service worker
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/attendance-pwa/service-worker.js').catch(() => {});
 }
@@ -460,29 +460,25 @@ function initFirebase() {
     firebaseReady = true;
     console.log('✓ Firebase and Firestore ready');
     
-    // Enable buttons once Firebase is ready
     document.getElementById('checkInBtn').disabled = false;
     document.getElementById('oooBtn').disabled = false;
-    
-    // Hide loading message
     document.getElementById('loadingMsg').innerHTML = '';
     
-    app.init();
+    app.init();   // Now safe
   } catch (e) {
     console.error('Firebase init error:', e);
     setTimeout(initFirebase, 1000);
   }
 }
 
-// Start Firebase initialization immediately
+// Show loading immediately
+document.getElementById('loadingMsg').innerHTML = '<div class="loading-msg">Initializing Firebase...</div>';
+
+// Start init
 initFirebase();
 
-// Also try on window load as backup
 window.addEventListener('load', () => {
-  if (!firebaseReady) {
-    console.log('Retrying Firebase init on window load...');
-    initFirebase();
-  }
+  if (!firebaseReady) initFirebase();
 });
 
 const app = {
@@ -513,12 +509,16 @@ const app = {
 
   switchView(view) {
     this.currentView = view;
-    
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.getElementById(view === 'employee' ? 'employeeView' : view === 'admin' ? 'adminView' : 'rankingView').classList.add('active');
+    const targetId = view === 'employee' ? 'employeeView' : view === 'admin' ? 'adminView' : 'rankingView';
+    document.getElementById(targetId).classList.add('active');
     
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-    event.target.classList.add('active');
+    // Fix for event
+    const activeBtn = Array.from(document.querySelectorAll('.nav-item')).find(btn => 
+      btn.getAttribute('onclick').includes(view)
+    );
+    if (activeBtn) activeBtn.classList.add('active');
     
     this.render();
   },
