@@ -10,15 +10,14 @@
   <link rel="manifest" href="/attendance-pwa/manifest.json">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%230070C0' width='192' height='192'/><text x='50%' y='50%' font-size='120' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='central'>A</text></svg>">
   <title>DQAP Attendance</title>
-  <!-- ✅ Fixed Firebase CDN URLs (newer version) -->
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-compat/app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-compat/firestore.js"></script>
+  <!-- ✅ CORRECT Firebase URLs (matching Wiki PWA) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { width: 100%; height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; color: #1f2937; background: #f9fafb; -webkit-user-select: none; user-select: none; }
+    html, body { width: 100%; height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; color: #1f2937; background: #f9fafb; }
     body { display: flex; flex-direction: column; overflow: hidden; }
     .app-header { background: #0070C0; color: white; padding: max(12px, env(safe-area-inset-top)) 16px 12px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    .header-content { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .header-title { font-size: 18px; font-weight: 600; }
     .header-info { font-size: 12px; opacity: 0.9; }
     .main-content { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px; padding-bottom: 70px; }
@@ -27,7 +26,8 @@
     .info-banner { padding: 12px; background: #e0f2fe; color: #0369a1; border-radius: 8px; margin-bottom: 12px; font-size: 12px; line-height: 1.5; }
     .card { background: white; border: 0.5px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
     .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
-    .user-selector-mobile { padding: 10px 12px; margin-bottom: 12px; background: white; border: 0.5px solid #e5e7eb; border-radius: 8px; font-size: 14px; width: 100%; }
+    .card h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; margin-top: 16px; }
+    .user-selector { padding: 10px 12px; margin-bottom: 12px; background: white; border: 0.5px solid #e5e7eb; border-radius: 8px; font-size: 14px; width: 100%; }
     .status-box { background: linear-gradient(135deg, #0070C0 0%, #0056a0 100%); color: white; padding: 16px; border-radius: 12px; text-align: center; margin-bottom: 12px; }
     .status-label { font-size: 12px; opacity: 0.9; margin-bottom: 6px; }
     .status-value { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
@@ -38,7 +38,6 @@
     .btn-primary:disabled { background: #d1d5db; cursor: not-allowed; opacity: 0.6; }
     .btn-secondary { background: #f3f4f6; color: #1f2937; border: 0.5px solid #e5e7eb; }
     .btn-secondary:active { background: #e5e7eb; }
-    .btn-secondary:disabled { background: #e5e7eb; cursor: not-allowed; opacity: 0.6; }
     .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 200; padding: 12px; }
     .modal.active { display: flex; align-items: flex-end; }
     .modal-content { background: white; border-radius: 12px 12px 0 0; padding: 20px; width: 100%; animation: slideUp 0.3s ease-out; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
@@ -46,7 +45,6 @@
     .modal h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
     .radio-group { display: flex; flex-direction: column; gap: 8px; }
     .radio-option { padding: 12px; border: 0.5px solid #e5e7eb; border-radius: 8px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
-    .radio-option input[type="radio"] { margin: 0; }
     .radio-option.selected { background: #eff6ff; border-color: #0070C0; }
     .timeline-day { display: flex; gap: 10px; padding: 10px; background: #f9fafb; border-radius: 8px; border: 0.5px solid #e5e7eb; align-items: center; margin-bottom: 8px; }
     .timeline-date { font-weight: 500; font-size: 12px; min-width: 45px; }
@@ -68,13 +66,12 @@
     .nav-item.active { color: #0070C0; border-top: 3px solid #0070C0; }
     .error-msg { padding: 12px; background: #fee2e2; color: #991b1b; border-radius: 8px; margin-bottom: 12px; font-size: 12px; }
     .success-msg { padding: 12px; background: #ecfdf5; color: #065f46; border-radius: 8px; margin-bottom: 12px; font-size: 12px; }
-    .loading-msg { padding: 12px; background: #fef3c7; color: #92400e; border-radius: 8px; margin-bottom: 12px; font-size: 12px; }
   </style>
 </head>
 <body>
 
 <header class="app-header">
-  <div class="header-content">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
     <div>
       <div class="header-title">Attendance</div>
       <div class="header-info">DQAP • Live Testing</div>
@@ -83,14 +80,19 @@
 </header>
 
 <main class="main-content">
+  
+  <!-- EMPLOYEE VIEW -->
   <div id="employeeView" class="view active">
-    <div class="info-banner">✅ Real-time check-in system<br>Check in daily at 9:30 AM or mark OOO</div>
+    <div class="info-banner">
+      ✅ Real-time check-in system
+      <br>Check in daily at 9:30 AM or mark OOO
+    </div>
+    
     <div id="errorMsg"></div>
     <div id="successMsg"></div>
-    <div id="loadingMsg"></div>
     
     <div class="card">
-      <select id="userSelect" class="user-selector-mobile">
+      <select id="userSelect" class="user-selector">
         <option value="u001">👤 Updesh</option>
         <option value="u002">👤 Pratim</option>
         <option value="u003">👤 Keshav</option>
@@ -102,46 +104,79 @@
     
     <div class="card">
       <h2 id="empName"></h2>
+      
       <div class="status-box">
         <div class="status-label">Today's Status</div>
         <div class="status-value" id="todayStatus">—</div>
       </div>
+      
       <div class="button-group">
         <button class="btn btn-primary" id="checkInBtn" onclick="app.submitCheckIn()" disabled>✓ Check In Now</button>
         <button class="btn btn-secondary" id="oooBtn" onclick="app.showOOOModal()" disabled>📍 Mark OOO</button>
       </div>
+      
       <h3>10-Day Timeline</h3>
       <div id="empTimeline"></div>
     </div>
   </div>
-
+  
+  <!-- ADMIN VIEW -->
   <div id="adminView" class="view">
-    <div class="info-banner">⚙️ Admin Dashboard • Real-time team status</div>
-    <div class="card"><h2>Today's Check-Ins</h2><div id="teamGrid"></div></div>
+    <div class="info-banner">
+      ⚙️ Admin Dashboard • Real-time team status
+    </div>
+    
+    <div class="card">
+      <h2>Today's Check-Ins</h2>
+      <div id="teamGrid"></div>
+    </div>
+  </div>
+  
+  <!-- RANKING VIEW -->
+  <div id="rankingView" class="view">
+    <div class="info-banner">
+      🏆 Team Rankings • Updated daily
+    </div>
+    
+    <div class="card">
+      <h2>Consistency Scores</h2>
+      <div id="rankingsList"></div>
+    </div>
   </div>
 
-  <div id="rankingView" class="view">
-    <div class="info-banner">🏆 Team Rankings • Updated daily</div>
-    <div class="card"><h2>Consistency Scores</h2><div id="rankingsList"></div></div>
-  </div>
 </main>
 
+<!-- OOO MODAL -->
 <div id="oooModal" class="modal">
   <div class="modal-content">
     <h2>Mark as Out of Office</h2>
-    <div style="margin-bottom:16px;">
-      <label style="font-weight:500;display:block;margin-bottom:12px;">Reason:</label>
+    
+    <div style="margin-bottom: 16px;">
+      <label style="font-weight: 500; display: block; margin-bottom: 12px;">Reason:</label>
       <div class="radio-group">
-        <label class="radio-option" onclick="app.selectOOO('wfh')"><input type="radio" name="ooo" value="wfh"> 📍 Working from Home</label>
-        <label class="radio-option" onclick="app.selectOOO('meeting')"><input type="radio" name="ooo" value="meeting"> 🤝 Client Meeting</label>
-        <label class="radio-option" onclick="app.selectOOO('travel')"><input type="radio" name="ooo" value="travel"> ✈️ Travel / Outstation</label>
-        <label class="radio-option" onclick="app.selectOOO('leave')"><input type="radio" name="ooo" value="leave"> 📅 Approved Leave</label>
-        <label class="radio-option" onclick="app.selectOOO('training')"><input type="radio" name="ooo" value="training"> 🏆 Training</label>
-        <label class="radio-option" onclick="app.selectOOO('other')"><input type="radio" name="ooo" value="other"> 📝 Other</label>
+        <label class="radio-option" onclick="app.selectOOO('wfh')">
+          <input type="radio" name="ooo" value="wfh"> 📍 Working from Home
+        </label>
+        <label class="radio-option" onclick="app.selectOOO('meeting')">
+          <input type="radio" name="ooo" value="meeting"> 🤝 Client Meeting
+        </label>
+        <label class="radio-option" onclick="app.selectOOO('travel')">
+          <input type="radio" name="ooo" value="travel"> ✈️ Travel / Outstation
+        </label>
+        <label class="radio-option" onclick="app.selectOOO('leave')">
+          <input type="radio" name="ooo" value="leave"> 📅 Approved Leave
+        </label>
+        <label class="radio-option" onclick="app.selectOOO('training')">
+          <input type="radio" name="ooo" value="training"> 🏆 Training
+        </label>
+        <label class="radio-option" onclick="app.selectOOO('other')">
+          <input type="radio" name="ooo" value="other"> 📝 Other
+        </label>
       </div>
     </div>
+    
     <button class="btn btn-primary" onclick="app.submitOOO()">Mark as OOO</button>
-    <button class="btn btn-secondary" style="margin-top:8px;" onclick="app.closeModal('oooModal')">Cancel</button>
+    <button class="btn btn-secondary" style="margin-top: 8px; grid-column: 1 / -1;" onclick="app.closeModal('oooModal')">Cancel</button>
   </div>
 </div>
 
@@ -152,10 +187,7 @@
 </nav>
 
 <script>
-// Service worker
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/attendance-pwa/service-worker.js').catch(() => {});
-
-// Firebase Config
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyA6T2HkI8bindR0yeTN42rOZ50KUew96hY",
   authDomain: "dqap-attendance.firebaseapp.com",
@@ -168,10 +200,40 @@ const firebaseConfig = {
 let db = null;
 let firebaseReady = false;
 
+function initFirebase() {
+  if (typeof firebase === 'undefined') {
+    console.log('Firebase SDK not loaded yet, retrying...');
+    setTimeout(initFirebase, 300);
+    return;
+  }
+
+  try {
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+      console.log('✓ Firebase initialized');
+    }
+    db = firebase.firestore();
+    firebaseReady = true;
+    console.log('✓ Firestore ready');
+    
+    document.getElementById('checkInBtn').disabled = false;
+    document.getElementById('oooBtn').disabled = false;
+    
+    app.init();
+  } catch (e) {
+    console.error('Firebase error:', e);
+    setTimeout(initFirebase, 1000);
+  }
+}
+
+// Initialize Firebase on page load
+window.addEventListener('load', initFirebase);
+
 const app = {
   currentUser: 'u001',
   currentView: 'employee',
   selectedOOO: null,
+  
   employees: {
     'u001': { name: 'Updesh' },
     'u002': { name: 'Pratim' },
@@ -196,17 +258,17 @@ const app = {
   switchView(view) {
     this.currentView = view;
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    const id = view === 'employee' ? 'employeeView' : view === 'admin' ? 'adminView' : 'rankingView';
-    document.getElementById(id).classList.add('active');
+    document.getElementById(view === 'employee' ? 'employeeView' : view === 'admin' ? 'adminView' : 'rankingView').classList.add('active');
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(item => {
-      if (item.getAttribute('onclick').includes(view)) item.classList.add('active');
-    });
+    event.target.classList.add('active');
     this.render();
   },
 
   showOOOModal() {
-    if (!firebaseReady) { showError('Firebase is initializing...'); return; }
+    if (!firebaseReady || !db) {
+      showError('Firebase initializing...');
+      return;
+    }
     document.getElementById('oooModal').classList.add('active');
   },
 
@@ -221,38 +283,71 @@ const app = {
   },
 
   async submitCheckIn() {
-    if (!firebaseReady || !db) { showError('Firebase is initializing...'); return; }
+    if (!firebaseReady || !db) {
+      showError('Firebase initializing...');
+      return;
+    }
+
     const now = new Date();
-    const time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-    const dateStr = (now.getMonth()+1).toString().padStart(2,'0') + '-' + now.getDate().toString().padStart(2,'0');
-    const userId = this.currentUser;
+    const time = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+    const dateStr = (now.getMonth() + 1).toString().padStart(2, '0') + '-' + now.getDate().toString().padStart(2, '0');
+
     try {
-      await db.collection('attendances').doc(`${userId}_${dateStr}`).set({
-        userId, date: dateStr, checkin_time: time, status: 'present',
+      await db.collection('attendances').doc(`${this.currentUser}_${dateStr}`).set({
+        userId: this.currentUser,
+        date: dateStr,
+        checkin_time: time,
+        status: 'present',
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
       });
+
       showSuccess(`✓ Checked in at ${time}`);
       setTimeout(() => this.render(), 500);
-    } catch (e) { showError('Check-in failed'); }
+    } catch (e) {
+      showError('Check-in failed: ' + e.message);
+    }
   },
 
   async submitOOO() {
-    if (!this.selectedOOO) { showError('Please select a reason'); return; }
-    if (!firebaseReady || !db) { showError('Firebase is initializing...'); return; }
+    if (!this.selectedOOO) {
+      showError('Select a reason');
+      return;
+    }
+
+    if (!firebaseReady || !db) {
+      showError('Firebase initializing...');
+      return;
+    }
+
     const now = new Date();
-    const dateStr = (now.getMonth()+1).toString().padStart(2,'0') + '-' + now.getDate().toString().padStart(2,'0');
-    const userId = this.currentUser;
-    const oooLabels = {wfh:'Working from Home',meeting:'Client Meeting',travel:'Travel',leave:'Approved Leave',training:'Training',other:'Other'};
+    const dateStr = (now.getMonth() + 1).toString().padStart(2, '0') + '-' + now.getDate().toString().padStart(2, '0');
+
+    const oooLabels = {
+      'wfh': 'Working from Home',
+      'meeting': 'Client Meeting',
+      'travel': 'Travel',
+      'leave': 'Approved Leave',
+      'training': 'Training',
+      'other': 'Other'
+    };
+
     try {
-      await db.collection('attendances').doc(`${userId}_${dateStr}`).set({
-        userId, date: dateStr, status: 'ooo', oof_type: this.selectedOOO, oof_reason: oooLabels[this.selectedOOO],
+      await db.collection('attendances').doc(`${this.currentUser}_${dateStr}`).set({
+        userId: this.currentUser,
+        date: dateStr,
+        status: 'ooo',
+        oof_type: this.selectedOOO,
+        oof_reason: oooLabels[this.selectedOOO],
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
       });
+
       showSuccess(`✓ Marked as ${oooLabels[this.selectedOOO]}`);
       this.selectedOOO = null;
       this.closeModal('oooModal');
       setTimeout(() => this.render(), 500);
-    } catch (e) { showError('OOO failed'); }
+    } catch (e) {
+      showError('OOO failed: ' + e.message);
+    }
   },
 
   async getRecordForDate(userId, dateStr) {
@@ -260,12 +355,14 @@ const app = {
     try {
       const doc = await db.collection('attendances').doc(`${userId}_${dateStr}`).get();
       return doc.exists ? doc.data() : null;
-    } catch { return null; }
+    } catch (e) {
+      return null;
+    }
   },
 
   async getTodayRecord(userId) {
     const now = new Date();
-    const dateStr = (now.getMonth()+1).toString().padStart(2,'0') + '-' + now.getDate().toString().padStart(2,'0');
+    const dateStr = (now.getMonth() + 1).toString().padStart(2, '0') + '-' + now.getDate().toString().padStart(2, '0');
     return this.getRecordForDate(userId, dateStr);
   },
 
@@ -277,82 +374,111 @@ const app = {
 
   async renderEmployee() {
     document.getElementById('empName').textContent = this.employees[this.currentUser].name;
+
     const todayRecord = await this.getTodayRecord(this.currentUser);
-    document.getElementById('todayStatus').textContent = todayRecord ? 
-      (todayRecord.status === 'present' ? `✓ ${todayRecord.checkin_time}` : `📍 ${todayRecord.oof_reason}`) : '⏳ Not checked in';
-    // Timeline (simplified)
-    let html = '';
-    const dates = ['06-10','06-11','06-12','06-13','06-14','06-15','06-16','06-17','06-18','06-19'];
-    for (let d of dates) {
-      const rec = await this.getRecordForDate(this.currentUser, d);
-      const day = d.split('-')[1];
-      html += rec ? 
-        `<div class="timeline-day"><div class="timeline-date">Jun ${day}</div><span class="status-badge ${rec.status==='present'?'present':'wfh'}">${rec.status==='present'?'✓':'📍'}</span><div class="timeline-info"><div class="timeline-time">${rec.checkin_time||rec.oof_reason||'OOO'}</div></div></div>` :
-        `<div class="timeline-day"><div class="timeline-date">Jun ${day}</div><span class="status-badge empty">—</span><div class="timeline-info"><div class="timeline-time">No entry</div></div></div>`;
+    if (todayRecord) {
+      if (todayRecord.status === 'present') {
+        document.getElementById('todayStatus').textContent = `✓ ${todayRecord.checkin_time}`;
+      } else {
+        document.getElementById('todayStatus').textContent = `📍 ${todayRecord.oof_reason}`;
+      }
+    } else {
+      document.getElementById('todayStatus').textContent = '⏳ Not checked in';
     }
-    document.getElementById('empTimeline').innerHTML = html;
+
+    let timelineHtml = '';
+    const dates = ['06-10', '06-11', '06-12', '06-13', '06-14', '06-15', '06-16', '06-17', '06-18', '06-19'];
+
+    for (const dateStr of dates) {
+      const record = await this.getRecordForDate(this.currentUser, dateStr);
+      const [month, day] = dateStr.split('-');
+      
+      if (record) {
+        const statusIcon = record.status === 'present' ? '✓' : '📍';
+        const statusClass = record.status === 'present' ? 'present' : 'wfh';
+        const timeOrReason = record.checkin_time || record.oof_reason || 'OOO';
+        
+        timelineHtml += `
+          <div class="timeline-day">
+            <div class="timeline-date">Jun ${day}</div>
+            <span class="status-badge ${statusClass}">${statusIcon}</span>
+            <div class="timeline-info"><div class="timeline-time">${timeOrReason}</div></div>
+          </div>
+        `;
+      } else {
+        timelineHtml += `
+          <div class="timeline-day">
+            <div class="timeline-date">Jun ${day}</div>
+            <span class="status-badge empty">—</span>
+            <div class="timeline-info"><div class="timeline-time">No entry</div></div>
+          </div>
+        `;
+      }
+    }
+
+    document.getElementById('empTimeline').innerHTML = timelineHtml;
   },
 
   async renderAdmin() {
-    let html = '';
-    for (let uid in this.employees) {
-      const rec = await this.getTodayRecord(uid);
-      let txt = '⏳ Not checked in';
-      if (rec) txt = rec.status === 'present' ? `✓ ${rec.checkin_time}` : `📍 ${rec.oof_reason}`;
-      html += `<div class="team-member"><div class="member-name">${this.employees[uid].name}</div><div class="member-status">${txt}</div></div>`;
+    let teamHtml = '';
+    for (const userId of Object.keys(this.employees)) {
+      const todayRecord = await this.getTodayRecord(userId);
+      let statusText = '⏳ Not checked in';
+      if (todayRecord) {
+        if (todayRecord.status === 'present') {
+          statusText = `✓ ${todayRecord.checkin_time}`;
+        } else {
+          statusText = `📍 ${todayRecord.oof_reason}`;
+        }
+      }
+      teamHtml += `
+        <div class="team-member">
+          <div class="member-name">${this.employees[userId].name}</div>
+          <div class="member-status">${statusText}</div>
+        </div>
+      `;
     }
-    document.getElementById('teamGrid').innerHTML = html;
+    document.getElementById('teamGrid').innerHTML = teamHtml;
   },
 
   async renderRanking() {
-    // Simplified ranking
-    let html = '';
-    const scores = Object.keys(this.employees).map(uid => ({name: this.employees[uid].name, score: 80}));
-    scores.sort((a,b)=>b.score-a.score);
-    scores.forEach((s,i) => {
-      html += `<div class="ranking"><div style="font-weight:600;">#${i+1}</div><div class="ranking-name">${s.name}</div><div class="ranking-score">${s.score}%</div></div>`;
+    let rankHtml = '';
+    const scores = [];
+    for (const userId of Object.keys(this.employees)) {
+      let checkins = 0;
+      const dates = ['06-10', '06-11', '06-12', '06-13', '06-14', '06-15', '06-16', '06-17', '06-18', '06-19'];
+      for (const dateStr of dates) {
+        const record = await this.getRecordForDate(userId, dateStr);
+        if (record && record.status === 'present') checkins++;
+      }
+      scores.push({ userId, name: this.employees[userId].name, score: checkins * 10 });
+    }
+    scores.sort((a, b) => b.score - a.score);
+    scores.forEach((item, idx) => {
+      rankHtml += `
+        <div class="ranking">
+          <div style="font-weight: 600;">#${idx + 1}</div>
+          <div class="ranking-name">${item.name}</div>
+          <div class="ranking-score">${item.score}%</div>
+        </div>
+      `;
     });
-    document.getElementById('rankingsList').innerHTML = html;
+    document.getElementById('rankingsList').innerHTML = rankHtml;
   }
 };
 
 function showError(msg) {
   const el = document.getElementById('errorMsg');
   el.innerHTML = `<div class="error-msg">${msg}</div>`;
-  setTimeout(() => el.innerHTML='', 5000);
+  setTimeout(() => el.innerHTML = '', 5000);
 }
 
 function showSuccess(msg) {
   const el = document.getElementById('successMsg');
   el.innerHTML = `<div class="success-msg">${msg}</div>`;
-  setTimeout(() => el.innerHTML='', 3000);
+  setTimeout(() => el.innerHTML = '', 3000);
 }
-
-// Firebase Init
-function initFirebase() {
-  if (typeof firebase === 'undefined') {
-    setTimeout(initFirebase, 200);
-    return;
-  }
-  try {
-    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-    db = firebase.firestore();
-    firebaseReady = true;
-    document.getElementById('checkInBtn').disabled = false;
-    document.getElementById('oooBtn').disabled = false;
-    document.getElementById('loadingMsg').innerHTML = '';
-    app.init();
-    console.log('✓ Firebase Ready');
-  } catch (e) {
-    console.error(e);
-    setTimeout(initFirebase, 800);
-  }
-}
-
-document.getElementById('loadingMsg').innerHTML = '<div class="loading-msg">Initializing Firebase...</div>';
-initFirebase();
-
-window.addEventListener('load', () => { if (!firebaseReady) initFirebase(); });
 </script>
+
 </body>
 </html>
